@@ -99,13 +99,13 @@ SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
 
     <!-- Server-Side AMPscript -->
     %%[
-        VAR @action, @uf, @city, @rows, @rowCount, @uniqueHospitals
+        VAR @action, @uf, @city, @rows, @rowCount, @uniqueCities
         SET @action = RequestParameter("action")
         SET @uf = RequestParameter("uf")
         SET @city = RequestParameter("city")
 
         /* Inicializa variável para controle de duplicados */
-        SET @uniqueHospitals = ""
+        SET @uniqueCities = ""
 
         /* Busca cidades com base na UF selecionada */
         IF @action == "fetchCities" THEN
@@ -116,9 +116,14 @@ SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
                 FOR @i = 1 TO @rowCount
                     SET @row = Row(@rows, @i)
                     SET @cityName = Field(@row, "Cidade")
+
+                    /* Verifica duplicidade de cidades */
+                    IF NOT IndexOf(@uniqueCities, @cityName) > 0 THEN
+                        SET @uniqueCities = Concat(@uniqueCities, @cityName, ",")
         ]%%
-                    <option value="%%=v(@cityName)=%%">%%=v(@cityName)=%%</option>
+                        <option value="%%=v(@cityName)=%%">%%=v(@cityName)=%%</option>
         %%[
+                    ENDIF
                 NEXT @i
             ENDIF
 
@@ -131,14 +136,9 @@ SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
                 FOR @i = 1 TO @rowCount
                     SET @row = Row(@rows, @i)
                     SET @hospitalName = Field(@row, "Hospital")
-
-                    /* Verifica duplicidade */
-                    IF NOT IndexOf(@uniqueHospitals, @hospitalName) > 0 THEN
-                        SET @uniqueHospitals = Concat(@uniqueHospitals, @hospitalName, ",")
         ]%%
-                        <p>%%=v(@hospitalName)=%%</p>
+                    <p>%%=v(@hospitalName)=%%</p>
         %%[
-                    ENDIF
                 NEXT @i
             ENDIF
         ENDIF
