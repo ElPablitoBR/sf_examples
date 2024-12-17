@@ -1,6 +1,6 @@
 %%[
-/* AMPscript para carregar as UFs no carregamento da página */
-SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste */
+/* Carrega as UFs no carregamento inicial da página */
+SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
 ]%%
 
 <!DOCTYPE html>
@@ -8,7 +8,7 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
 <head>
     <title>Hospitais do Brasil</title>
     <script>
-        // Carregar cidades ao selecionar UF
+        // Carrega as cidades ao selecionar UF
         function loadCities() {
             var selectedUF = document.getElementById("ufSelect").value;
             fetchCities(selectedUF);
@@ -29,7 +29,7 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
             xhr.send("action=fetchCities&uf=" + uf);
         }
 
-        // Carregar hospitais ao selecionar Cidade
+        // Carrega os hospitais ao selecionar a Cidade
         function loadHospitals() {
             var selectedCity = document.getElementById("citySelect").value;
             fetchHospitals(selectedCity);
@@ -49,10 +49,15 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
             xhr.send("action=fetchHospitals&city=" + city);
         }
 
-        // Exportar os dados visíveis em CSV
+        // Exporta os dados exibidos em CSV
         function exportToCSV() {
-            var data = document.getElementById("hospitalList").innerText;
-            var blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+            var data = "";
+            var hospitals = document.querySelectorAll("#hospitalList p");
+            hospitals.forEach(hospital => {
+                data += hospital.innerText + "\n";
+            });
+
+            var blob = new Blob([data], { type: "text/csv;charset=utf-8;" });
             var link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "hospitais.csv";
@@ -63,12 +68,12 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
 <body>
     <h1>Lista de Hospitais do Brasil</h1>
 
-    <!-- UF Dropdown -->
+    <!-- Dropdown para UF -->
     <label for="ufSelect">Selecione a UF:</label>
     <select id="ufSelect" onchange="loadCities()">
         <option value="">Selecione uma UF</option>
         %%[
-            SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
+            /* Loop para carregar UFs */
             FOR @i = 1 TO RowCount(@ufs)
                 SET @row = Row(@ufs, @i)
                 SET @uf = Field(@row, "UF")
@@ -79,27 +84,30 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
         ]%%
     </select>
 
-    <!-- Cidades Dropdown -->
+    <!-- Dropdown para Cidade -->
     <label for="citySelect">Selecione a Cidade:</label>
     <select id="citySelect" onchange="loadHospitals()">
         <option value="">Selecione uma Cidade</option>
     </select>
 
-    <!-- Hospitais Lista -->
+    <!-- Lista de Hospitais -->
     <h3>Hospitais:</h3>
     <div id="hospitalList"></div>
 
-    <!-- Exportar CSV -->
+    <!-- Botão para Exportar CSV -->
     <button onclick="exportToCSV()">Exportar CSV</button>
 
-    <!-- Server-Side AMPscript para Respostas -->
+    <!-- Server-Side AMPscript -->
     %%[
-        VAR @action, @uf, @city, @rows, @rowCount
-
+        VAR @action, @uf, @city, @rows, @rowCount, @uniqueHospitals
         SET @action = RequestParameter("action")
         SET @uf = RequestParameter("uf")
         SET @city = RequestParameter("city")
 
+        /* Inicializa variável para controle de duplicados */
+        SET @uniqueHospitals = ""
+
+        /* Busca cidades com base na UF selecionada */
         IF @action == "fetchCities" THEN
             SET @rows = LookupRows("Hospitais_DE", "UF", @uf)
             SET @rowCount = RowCount(@rows)
@@ -113,6 +121,8 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
         %%[
                 NEXT @i
             ENDIF
+
+        /* Busca hospitais com base na Cidade selecionada */
         ELSEIF @action == "fetchHospitals" THEN
             SET @rows = LookupRows("Hospitais_DE", "Cidade", @city)
             SET @rowCount = RowCount(@rows)
@@ -121,9 +131,14 @@ SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste 
                 FOR @i = 1 TO @rowCount
                     SET @row = Row(@rows, @i)
                     SET @hospitalName = Field(@row, "Hospital")
+
+                    /* Verifica duplicidade */
+                    IF NOT IndexOf(@uniqueHospitals, @hospitalName) > 0 THEN
+                        SET @uniqueHospitals = Concat(@uniqueHospitals, @hospitalName, ",")
         ]%%
-                    <p>%%=v(@hospitalName)=%%</p>
+                        <p>%%=v(@hospitalName)=%%</p>
         %%[
+                    ENDIF
                 NEXT @i
             ENDIF
         ENDIF
