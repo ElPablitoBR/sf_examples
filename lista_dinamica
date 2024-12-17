@@ -1,0 +1,132 @@
+%%[
+/* AMPscript para carregar as UFs no carregamento da página */
+SET @rows = LookupRows("Hospitais_DE", "Cidade", "placeholder") /* apenas teste */
+]%%
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hospitais do Brasil</title>
+    <script>
+        // Carregar cidades ao selecionar UF
+        function loadCities() {
+            var selectedUF = document.getElementById("ufSelect").value;
+            fetchCities(selectedUF);
+        }
+
+        function fetchCities(uf) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    document.getElementById("citySelect").innerHTML = xhr.responseText;
+                    document.getElementById("hospitalList").innerHTML = ""; // Reset hospital list
+                }
+            };
+
+            xhr.send("action=fetchCities&uf=" + uf);
+        }
+
+        // Carregar hospitais ao selecionar Cidade
+        function loadHospitals() {
+            var selectedCity = document.getElementById("citySelect").value;
+            fetchHospitals(selectedCity);
+        }
+
+        function fetchHospitals(city) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    document.getElementById("hospitalList").innerHTML = xhr.responseText;
+                }
+            };
+
+            xhr.send("action=fetchHospitals&city=" + city);
+        }
+
+        // Exportar os dados visíveis em CSV
+        function exportToCSV() {
+            var data = document.getElementById("hospitalList").innerText;
+            var blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "hospitais.csv";
+            link.click();
+        }
+    </script>
+</head>
+<body>
+    <h1>Lista de Hospitais do Brasil</h1>
+
+    <!-- UF Dropdown -->
+    <label for="ufSelect">Selecione a UF:</label>
+    <select id="ufSelect" onchange="loadCities()">
+        <option value="">Selecione uma UF</option>
+        %%[
+            SET @ufs = LookupOrderedRows("Hospitais_DE", 0, "UF ASC")
+            FOR @i = 1 TO RowCount(@ufs)
+                SET @row = Row(@ufs, @i)
+                SET @uf = Field(@row, "UF")
+        ]%%
+            <option value="%%=v(@uf)=%%">%%=v(@uf)=%%</option>
+        %%[
+            NEXT @i
+        ]%%
+    </select>
+
+    <!-- Cidades Dropdown -->
+    <label for="citySelect">Selecione a Cidade:</label>
+    <select id="citySelect" onchange="loadHospitals()">
+        <option value="">Selecione uma Cidade</option>
+    </select>
+
+    <!-- Hospitais Lista -->
+    <h3>Hospitais:</h3>
+    <div id="hospitalList"></div>
+
+    <!-- Exportar CSV -->
+    <button onclick="exportToCSV()">Exportar CSV</button>
+
+    <!-- Server-Side AMPscript para Respostas -->
+    %%[
+        VAR @action, @uf, @city, @rows, @rowCount
+
+        SET @action = RequestParameter("action")
+        SET @uf = RequestParameter("uf")
+        SET @city = RequestParameter("city")
+
+        IF @action == "fetchCities" THEN
+            SET @rows = LookupRows("Hospitais_DE", "UF", @uf)
+            SET @rowCount = RowCount(@rows)
+
+            IF @rowCount > 0 THEN
+                FOR @i = 1 TO @rowCount
+                    SET @row = Row(@rows, @i)
+                    SET @cityName = Field(@row, "Cidade")
+        ]%%
+                    <option value="%%=v(@cityName)=%%">%%=v(@cityName)=%%</option>
+        %%[
+                NEXT @i
+            ENDIF
+        ELSEIF @action == "fetchHospitals" THEN
+            SET @rows = LookupRows("Hospitais_DE", "Cidade", @city)
+            SET @rowCount = RowCount(@rows)
+
+            IF @rowCount > 0 THEN
+                FOR @i = 1 TO @rowCount
+                    SET @row = Row(@rows, @i)
+                    SET @hospitalName = Field(@row, "Hospital")
+        ]%%
+                    <p>%%=v(@hospitalName)=%%</p>
+        %%[
+                NEXT @i
+            ENDIF
+        ENDIF
+    ]%%
+</body>
+</html>
